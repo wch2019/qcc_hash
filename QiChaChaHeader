@@ -1,0 +1,140 @@
+/**
+ * 企查查请求哈希校验方法
+ *
+ * @author wangchenghai
+ * @date 2023/05/22 10:22:42
+ */
+public class QiChaChaHeader {
+    private static final String HASH_ALGORITHM = "HmacSHA512";
+    private static final int SEEDS_N = 20;
+
+    /**
+     * 根据输入字符串计算对应的密钥
+     *
+     * @param s 字符串
+     * @return java.lang.String
+     * @author wangchenghai
+     * @date 2023/05/23 10:53:51
+     */
+    public static String seedsGenerator(String s) {
+        Map<Integer, String> seeds = new HashMap<Integer, String>();
+        seeds.put(0, "W");
+        seeds.put(1, "l");
+        seeds.put(2, "k");
+        seeds.put(3, "B");
+        seeds.put(4, "Q");
+        seeds.put(5, "g");
+        seeds.put(6, "f");
+        seeds.put(7, "i");
+        seeds.put(8, "i");
+        seeds.put(9, "r");
+        seeds.put(10, "v");
+        seeds.put(11, "6");
+        seeds.put(12, "A");
+        seeds.put(13, "K");
+        seeds.put(14, "N");
+        seeds.put(15, "k");
+        seeds.put(16, "4");
+        seeds.put(17, "L");
+        seeds.put(18, "1");
+        seeds.put(19, "8");
+        if (s == null) {
+            // 如果输入为空，则默认为"/"
+            s = "/";
+        }
+        // 转换为小写
+        s = s.toLowerCase();
+        // 将输入字符串复制一遍拼接
+        s = s + s;
+        StringBuilder res = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            // 取出当前字符
+            String c = String.valueOf(s.charAt(i));
+            // 计算密钥并拼接结果字符串
+            res.append(seeds.get((c.charAt(0)) % SEEDS_N));
+        }
+        return res.toString();
+    }
+
+    /**
+     * 根据请求URL和请求参数计算key
+     *
+     * @param url  请求url
+     * @param data 请求参数
+     * @return java.lang.String
+     * @author wangchenghai
+     * @date 2023/05/23 10:53:26
+     */
+    public static String aDefault(String url, Map<String, Object> data) {
+        try {
+            // 转换为小写
+            url = url.toLowerCase();
+            // 创建ObjectMapper对象
+            ObjectMapper mapper = new ObjectMapper();
+            // 将请求参数序列化为JSON字符串
+            String dataJson = mapper.writeValueAsString(data).toLowerCase();
+            // 计算密钥
+            String key = seedsGenerator(url);
+            // 创建密钥规范
+            SecretKeySpec skeySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), HASH_ALGORITHM);
+            // 创建消息认证码实例
+            Mac mac = Mac.getInstance(HASH_ALGORITHM);
+            // 初始化消息认证码
+            mac.init(skeySpec);
+            // 计算结果
+            byte[] result = mac.doFinal((url + dataJson).getBytes(StandardCharsets.UTF_8));
+            // 转换为十六进制字符串，截取8-28位
+            return Hex.encodeHexString(result).toLowerCase().substring(8, 28);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
+
+    /**
+     * 根据请求URL、请求参数和tid计算val
+     *
+     * @param url  请求url
+     * @param data 请求参数
+     * @param tid  tid
+     * @return java.lang.String
+     * @author wangchenghai
+     * @date 2023/05/23 10:52:53
+     */
+    public static String rDefault(String url, Map<String, Object> data, String tid) {
+        try {
+            // 转换为小写
+            url = url.toLowerCase();
+            // 创建ObjectMapper对象
+            ObjectMapper mapper = new ObjectMapper();
+            // 将请求参数序列化为JSON字符串
+            String dataJson = mapper.writeValueAsString(data).toLowerCase();
+            // 固定字符串
+            String pathString = "pathString";
+            // 计算payload
+            String payload = url + pathString + dataJson + tid;
+            // 计算密钥
+            String key = seedsGenerator(url);
+            // 创建密钥规范
+            SecretKeySpec skeySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), HASH_ALGORITHM);
+            // 创建消息认证码实例
+            Mac mac = Mac.getInstance(HASH_ALGORITHM);
+            // 初始化消息认证码
+            mac.init(skeySpec);
+            // 计算结果
+            byte[] result = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
+            // 转换为十六进制字符串
+            return Hex.encodeHexString(result).toLowerCase();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        String url = "/api/search/companyShareholderList";
+        JSONObject jsonObject = JSON.parseObject("{'ids':'968e42a3cbfcb919e8354bfb12644f57'}");
+        String tid = "347f861f4cc1015a260be3c6e50306f7";
+        System.out.println("key: " + aDefault(url, jsonObject));
+        System.out.println("val: " + rDefault(url, jsonObject, tid));
+    }
